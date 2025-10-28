@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__supabase__execute_sql",
+      "mcp__supabase__apply_migration",
+      "Read(//Users/user/Desktop/hospital_area_analaysis_main 복사본/static/**)",
+      "Bash(python3:*)",
+      "Bash(for i in {0..19})",
+      "Bash(do echo \"Batch $i ready\")",
+      "Bash(done)",
+      "Bash(cat:*)",
+      "Read(//Users/user/Desktop/hospital_area_analaysis_main 복사본/**)",
+      "Bash(pip install:*)",
+      "Bash(ping:*)",
+      "Bash(curl:*)",
+      "Bash(pkill:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

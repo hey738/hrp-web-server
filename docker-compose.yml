@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  web:
+    # 이미지 빌드 설정
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    # 컨테이너 이름
+    container_name: hospital-area-analysis
+
+    # 포트 매핑 (호스트:컨테이너)
+    # CloudFront에서 EC2의 8000번 포트로 접속
+    ports:
+      - "8000:8000"
+
+    # 환경 변수 파일 로드
+    env_file:
+      - .env
+
+    # 볼륨 마운트 (개발 편의성)
+    # 코드 수정 시 컨테이너 재시작 없이 반영 가능
+    volumes:
+      - ./static:/app/static
+      - ./server.py:/app/server.py
+      - ./index.html:/app/index.html
+
+    # 재시작 정책
+    # always: 컨테이너가 중지되면 항상 재시작
+    # unless-stopped: 수동으로 중지하지 않는 한 항상 재시작
+    restart: unless-stopped
+
+    # 로그 설정 (로그 파일 크기 제한)
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # 헬스체크 (Docker Compose 레벨)
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+# 네트워크 설정 (기본 네트워크 사용)
+networks:
+  default:
+    driver: bridge

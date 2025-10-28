@@ -1,0 +1,553 @@
+html, body {width:100%;height:100%;margin:0;padding:0;} 
+
+.sidebar {
+    position: fixed;
+    left: -300px;
+    top: 0;
+    width: 300px;
+    height: 100%;
+    background-color: #fff;
+    box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+    transition: left 0.3s ease;
+    z-index: 1000;
+    border-right: 1px solid #ddd;
+}
+
+.sidebar.open {
+    left: 0;
+}
+
+.sidebar-content {
+    padding: 20px;
+    height: 100%;
+    overflow-y: auto;
+}
+
+.sidebar-toggle {
+    position: fixed;
+    left: 10px;
+    top: 10px;
+    width: 40px;
+    height: 40px;
+    background-color: #fff;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1001;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    transition: left 0.3s ease;
+}
+
+.sidebar-toggle:hover {
+    background-color: #f5f5f5;
+}
+
+.sidebar-toggle.sidebar-open {
+    left: 310px;
+}
+
+.map_wrap {position:relative;overflow:hidden;width:100%;height:100%;}
+.radius_border{border:1px solid #919191;border-radius:5px;}     
+.custom_typecontrol {position:absolute;top:10px;right:10px;overflow:hidden;width:130px;height:30px;margin:0;padding:0;z-index:1;font-size:12px;font-family:'Malgun Gothic', '맑은 고딕', sans-serif;}
+.custom_typecontrol span {display:block;width:65px;height:30px;float:left;text-align:center;line-height:30px;cursor:pointer;}
+.custom_typecontrol .btn {background:#fff;background:linear-gradient(#fff,  #e6e6e6);}       
+.custom_typecontrol .btn:hover {background:#f5f5f5;background:linear-gradient(#f5f5f5,#e3e3e3);}
+.custom_typecontrol .btn:active {background:#e6e6e6;background:linear-gradient(#e6e6e6, #fff);}    
+.custom_typecontrol .selected_btn {color:#fff;background:#425470;background:linear-gradient(#425470, #5b6d8a);}
+.custom_typecontrol .selected_btn:hover {color:#fff;}   
+.custom_zoomcontrol {position:absolute;top:50px;right:10px;width:36px;height:80px;overflow:hidden;z-index:1;background-color:#f5f5f5;} 
+.custom_zoomcontrol span {display:block;width:36px;height:40px;text-align:center;cursor:pointer;}     
+.custom_zoomcontrol span img {width:15px;height:15px;padding:12px 0;border:none;}             
+.custom_zoomcontrol span:first-child{border-bottom:1px solid #bfbfbf;}
+
+.info{
+    display:inline-flex;
+    align-items:center;
+    gap:4px;                 /* 텍스트 간 간격 */
+    padding:4px 8px;         /* 캡슐 여백 */
+    background:#fff;         /* 흰 배경 */
+    color:#333;              /* 기본 글자색 */
+    border:1px solid #d9d9d9;/* 은은한 테두리 */
+    border-radius:9999px;    /* 캡슐 모양 */
+    font:600 12px/1.2 system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    box-shadow:0 1px 3px rgba(0,0,0,.18); /* 살짝 그림자 */
+    -webkit-font-smoothing:antialiased;
+    -moz-osx-font-smoothing:grayscale;
+  }
+  
+  .info .number{
+    color:#1e78ff;           /* 파란 숫자 */
+    font-weight:700;         /* 숫자 강조 */
+  }
+
+/* 새로운 사이드바 컴포넌트 스타일 */
+.selection-mode {
+    margin-bottom: 20px;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 15px;
+}
+
+.selection-mode h3 {
+    margin: 0 0 10px 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #333;
+}
+
+.radio-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.radio-group label {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    font-size: 13px;
+    color: #555;
+}
+
+.radio-group input[type="radio"] {
+    margin-right: 8px;
+}
+
+.section {
+    margin-bottom: 20px;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 15px;
+}
+
+.section h3 {
+    margin: 0 0 15px 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #333;
+}
+
+.region-selectors {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.region-selectors select {
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 13px;
+    background-color: #fff;
+}
+
+.region-selectors select:disabled {
+    background-color: #f5f5f5;
+    color: #999;
+}
+
+.region-selectors button {
+    padding: 10px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.region-selectors button:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+}
+
+.region-selectors button:hover:not(:disabled) {
+    background-color: #0056b3;
+}
+
+.drawing-modes {
+    display: flex;
+    gap: 10px;
+}
+
+.drawing-modes button {
+    flex: 1;
+    padding: 10px;
+    background-color: #6c757d;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    opacity: 0.7;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.drawing-modes button:hover {
+    background-color: #5a6268;
+    opacity: 0.8;
+}
+
+.drawing-modes button.active {
+    background-color: #007bff;
+    box-shadow: 0 0 10px rgba(0,123,255,0.5);
+    transform: scale(1.05);
+    border: 2px solid #0056b3;
+    opacity: 1;
+    cursor: pointer;
+}
+
+.drawing-modes button.active:hover {
+    background-color: #0056b3;
+}
+
+#resultsContent {
+    min-height: 100px;
+    padding: 15px;
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 4px;
+    font-size: 13px;
+    color: #666;
+}
+
+/* 분석 결과 스타일 */
+.summary-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin: 15px 0;
+    padding: 12px;
+    background-color: #fff;
+    border-radius: 6px;
+    border: 1px solid #dee2e6;
+}
+
+.stat-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #f1f3f4;
+}
+
+.stat-item:last-child {
+    border-bottom: none;
+}
+
+.stat-label {
+    font-weight: 600;
+    color: #495057;
+    font-size: 12px;
+}
+
+.stat-value {
+    font-weight: 700;
+    color: #007bff;
+    font-size: 13px;
+}
+
+/* 연령대별 분포 테이블 스타일 */
+.age-distribution {
+    margin: 20px 0;
+    padding: 15px;
+    background-color: #fff;
+    border-radius: 6px;
+    border: 1px solid #dee2e6;
+}
+
+.age-distribution h5 {
+    margin: 0 0 15px 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #333;
+    border-bottom: 2px solid #007bff;
+    padding-bottom: 8px;
+}
+
+/* 테이블 기본 스타일 */
+.age-distribution-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    margin-top: 10px;
+}
+
+/* 테이블 헤더 */
+.age-distribution-table thead th {
+    background-color: #007bff;
+    color: white;
+    border: 1px solid #0056b3;
+    padding: 10px 8px;
+    font-weight: 600;
+    text-align: center;
+    font-size: 12px;
+}
+
+/* 테이블 셀 */
+.age-distribution-table tbody td {
+    border: 1px solid #dee2e6;
+    padding: 8px 10px;
+    text-align: right;
+}
+
+/* 첫 번째 컬럼 (연령대) - 중앙 정렬 */
+.age-distribution-table tbody td:nth-child(1) {
+    text-align: center;
+    font-weight: 600;
+    color: #495057;
+    background-color: #f8f9fa;
+}
+
+/* 짝수 행 배경색 */
+.age-distribution-table tbody tr:nth-child(even) {
+    background-color: #fafbfc;
+}
+
+/* 호버 효과 */
+.age-distribution-table tbody tr:hover {
+    background-color: #e7f3ff;
+    transition: background-color 0.2s ease;
+}
+
+/* 셀 선택 스타일 (엑셀처럼) */
+.age-distribution-table tbody td.selected {
+    background-color: #d0e8ff !important;
+    box-shadow: inset 0 0 0 2px #0078d4 !important;
+    position: relative;
+}
+
+/* 선택 중 커서 변경 */
+.age-distribution-table tbody td {
+    cursor: cell;
+    user-select: none;
+}
+
+/* 합계 표시 영역 */
+.table-selection-summary {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+    padding: 10px 15px;
+    background-color: #f0f8ff;
+    border: 1px solid #0078d4;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.table-selection-summary .summary-label {
+    color: #495057;
+}
+
+.table-selection-summary .summary-value {
+    color: #0078d4;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.analysis-details {
+    margin-top: 15px;
+    padding: 12px;
+    background-color: #e9ecef;
+    border-radius: 4px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: #6c757d;
+}
+
+/* 반응형 디자인 */
+@media (max-width: 320px) {
+    .summary-stats {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ✨ 새로운 UI 요소 스타일 */
+
+/* 분석 결과 컨테이너 */
+.analysis-results {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    margin: 10px 0;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.analysis-results h4 {
+    margin: 0 0 20px 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: #2c3e50;
+    border-bottom: 2px solid #007bff;
+    padding-bottom: 10px;
+}
+
+/* 요약 통계 그리드 개선 */
+.summary-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 15px;
+    margin: 20px 0;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+}
+
+.stat-item {
+    text-align: center;
+    padding: 12px;
+    background: white;
+    border-radius: 6px;
+    border: none;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.stat-label {
+    display: block;
+    font-size: 11px;
+    color: #6c757d;
+    margin-bottom: 6px;
+    font-weight: 500;
+}
+
+.stat-value {
+    display: block;
+    font-size: 14px;
+    font-weight: 700;
+    color: #2c3e50;
+}
+
+
+/* 로딩 스피너 */
+.loading-spinner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    text-align: center;
+}
+
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #007bff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 15px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.loading-spinner p {
+    margin: 0;
+    color: #6c757d;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+/* 에러 메시지 */
+.error-message {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+    border-radius: 8px;
+    padding: 15px;
+    margin: 15px 0;
+}
+
+.error-message h5 {
+    margin: 0 0 10px 0;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.error-message p {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+/* 내보내기 버튼 */
+.export-btn {
+    background: #28a745;
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    margin-top: 20px;
+    transition: all 0.3s ease;
+    width: 100%;
+}
+
+.export-btn:hover {
+    background: #218838;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+}
+
+.export-btn:active {
+    transform: translateY(0);
+}
+
+/* 모바일 반응형 개선 */
+@media (max-width: 768px) {
+    .analysis-results {
+        margin: 5px;
+        padding: 15px;
+    }
+
+    .summary-stats {
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        padding: 12px;
+    }
+
+    .stat-item {
+        padding: 8px;
+    }
+
+    .stat-label {
+        font-size: 10px;
+    }
+
+    .stat-value {
+        font-size: 13px;
+    }
+
+    .age-distribution-table {
+        font-size: 11px;
+    }
+
+    .age-distribution-table thead th,
+    .age-distribution-table tbody td {
+        padding: 6px 8px;
+    }
+}
+
+@media (max-width: 480px) {
+    .summary-stats {
+        grid-template-columns: 1fr;
+    }
+
+    .age-distribution-table {
+        font-size: 10px;
+    }
+
+    .age-distribution-table thead th,
+    .age-distribution-table tbody td {
+        padding: 5px 6px;
+    }
+}
