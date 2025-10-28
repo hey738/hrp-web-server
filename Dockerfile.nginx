@@ -1,0 +1,47 @@
+# Nginx Dockerfile - Hospital Area Analysis
+
+# 공식 Nginx 이미지 사용 (Alpine 버전 = 경량)
+FROM nginx:1.25-alpine
+
+# 메타데이터
+LABEL maintainer="Hospital Area Analysis"
+LABEL description="Nginx reverse proxy for FastAPI backend"
+
+# Nginx 설정 파일 복사
+COPY nginx.conf /etc/nginx/nginx.conf
+
+# 정적 파일 복사
+COPY static/ /usr/share/nginx/html/static/
+
+# 커스텀 에러 페이지 생성
+RUN echo '<!DOCTYPE html>\n\
+<html>\n\
+<head>\n\
+    <meta charset="UTF-8">\n\
+    <title>서버 오류</title>\n\
+    <style>\n\
+        body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }\n\
+        h1 { color: #e74c3c; }\n\
+        p { color: #7f8c8d; }\n\
+    </style>\n\
+</head>\n\
+<body>\n\
+    <h1>서버 오류</h1>\n\
+    <p>서비스에 일시적인 문제가 발생했습니다.</p>\n\
+    <p>잠시 후 다시 시도해주세요.</p>\n\
+</body>\n\
+</html>' > /usr/share/nginx/html/50x.html
+
+# 로그 디렉토리 권한 설정
+RUN mkdir -p /var/log/nginx && \
+    chown -R nginx:nginx /var/log/nginx
+
+# 헬스체크 설정
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget --quiet --tries=1 --spider http://localhost:80/nginx-health || exit 1
+
+# 포트 노출
+EXPOSE 80
+
+# Nginx 실행
+CMD ["nginx", "-g", "daemon off;"]
