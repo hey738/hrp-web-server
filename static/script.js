@@ -10,13 +10,493 @@ var map = new kakao.maps.Map(container, options);
 var regionBoundaryPolygons = [];  // 경계 폴리곤 배열 (MultiPolygon 지원)
 var regionCentroidMarker = null;   // 중심점 마커
 
+// 병원 마커 관리 전역 변수
+var hospitalMarkers = [];  // 병원 마커 배열
+var hospitalInfowindow = null;  // 병원 정보창
+var currentSelectedHospital = null;  // 현재 선택된 병원
+var wasDetailPanelOpenBeforeClose = false;  // 사이드바 닫기 전 상세창이 열려있었는지 기록
+
 // 사이드바 토글 기능
 function toggleSidebar() {
     var sidebar = document.getElementById('sidebar');
+    var detailPanel = document.getElementById('hospitalDetailPanel');
     var sidebarToggle = document.getElementById('sidebarToggle');
 
-    sidebar.classList.toggle('open');
-    sidebarToggle.classList.toggle('sidebar-open');
+    // 현재 사이드바 상태 확인
+    var isSidebarOpen = sidebar.classList.contains('open');
+
+    if (isSidebarOpen) {
+        // 사이드바가 열려있음 - 닫을 예정
+        // 상세정보창도 열려있는지 확인
+        if (detailPanel && detailPanel.classList.contains('open')) {
+            // 상세정보창이 열려있었음을 기억
+            wasDetailPanelOpenBeforeClose = true;
+            // 상세정보창 닫기 (선택된 병원 데이터는 유지)
+            closeHospitalDetail(false);
+        }
+        // 사이드바 닫기
+        sidebar.classList.remove('open');
+        sidebarToggle.classList.remove('sidebar-open');
+    } else {
+        // 사이드바가 닫혀있음 - 열 예정
+        // 사이드바 열기
+        sidebar.classList.add('open');
+        sidebarToggle.classList.add('sidebar-open');
+
+        // 이전에 상세정보창이 열려있었고 선택된 병원이 있으면 복원
+        if (wasDetailPanelOpenBeforeClose && currentSelectedHospital) {
+            detailPanel.classList.add('open');
+            sidebarToggle.classList.add('detail-open');
+            wasDetailPanelOpenBeforeClose = false; // 플래그 초기화
+        }
+    }
+}
+
+// 네비게이션 바 기능
+function showPopulationSidebar() {
+    var sidebar = document.getElementById('sidebar');
+    var sidebarToggle = document.getElementById('sidebarToggle');
+    var navPopulation = document.getElementById('navPopulation');
+    var navHospital = document.getElementById('navHospital');
+    var populationContent = document.getElementById('populationContent');
+    var hospitalContent = document.getElementById('hospitalContent');
+
+    // 사이드바가 닫혀있으면 열기
+    if (!sidebar.classList.contains('open')) {
+        sidebar.classList.add('open');
+        sidebarToggle.classList.add('sidebar-open');
+    }
+
+    // 네비게이션 바 활성 상태 변경
+    navPopulation.classList.add('active');
+    navHospital.classList.remove('active');
+
+    // 콘텐츠 전환
+    populationContent.style.display = 'block';
+    hospitalContent.style.display = 'none';
+
+    // 병원 상세 패널 닫기
+    closeHospitalDetail();
+}
+
+function showHospitalSidebar() {
+    var sidebar = document.getElementById('sidebar');
+    var sidebarToggle = document.getElementById('sidebarToggle');
+    var navPopulation = document.getElementById('navPopulation');
+    var navHospital = document.getElementById('navHospital');
+    var populationContent = document.getElementById('populationContent');
+    var hospitalContent = document.getElementById('hospitalContent');
+
+    // 사이드바가 닫혀있으면 열기
+    if (!sidebar.classList.contains('open')) {
+        sidebar.classList.add('open');
+        sidebarToggle.classList.add('sidebar-open');
+    }
+
+    // 네비게이션 바 활성 상태 변경
+    navHospital.classList.add('active');
+    navPopulation.classList.remove('active');
+
+    // 콘텐츠 전환
+    populationContent.style.display = 'none';
+    hospitalContent.style.display = 'block';
+}
+
+// 병원 마커 제거 함수
+function clearHospitalMarkers() {
+    for (var i = 0; i < hospitalMarkers.length; i++) {
+        hospitalMarkers[i].setMap(null);
+    }
+    hospitalMarkers = [];
+
+    // 정보창도 닫기
+    if (hospitalInfowindow) {
+        hospitalInfowindow.close();
+    }
+
+    // 상세 패널도 닫기
+    closeHospitalDetail();
+}
+
+// 병원 검색 함수
+async function searchHospitals() {
+    var resultsContent = document.getElementById('hospitalResultsContent');
+    resultsContent.innerHTML = '<p style="color: #666;">병원 검색 중...</p>';
+
+    try {
+        // 1. 현재 지도의 bounds 가져오기
+        var bounds = map.getBounds();
+        var sw = bounds.getSouthWest();  // 남서쪽 좌표
+        var ne = bounds.getNorthEast();  // 북동쪽 좌표
+
+        // 2. 필터 값 가져오기
+        var departmentFilter = document.getElementById('departmentFilter');
+        var specialistFilter = document.getElementById('specialistFilter');
+
+        var department = departmentFilter.value || "";  // 빈 문자열이면 전체
+        var hasSpecialist = specialistFilter.checked;
+
+        console.log('Map bounds:', {
+            sw_lat: sw.getLat(),
+            sw_lng: sw.getLng(),
+            ne_lat: ne.getLat(),
+            ne_lng: ne.getLng(),
+            department: department,
+            has_specialist: hasSpecialist
+        });
+
+        // 3. 서버에 병원 데이터 요청
+        const response = await fetch('/getHospitals', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                sw_lat: sw.getLat(),
+                sw_lng: sw.getLng(),
+                ne_lat: ne.getLat(),
+                ne_lng: ne.getLng(),
+                department: department,
+                has_specialist: hasSpecialist
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error('병원 검색 요청 실패');
+        }
+
+        const data = await response.json();
+        console.log('병원 검색 결과:', data);
+
+        // 3. 기존 마커 제거
+        clearHospitalMarkers();
+
+        // 4. 새로운 마커 생성
+        if (data.success && data.hospitals && data.hospitals.length > 0) {
+            // InfoWindow 초기화
+            if (!hospitalInfowindow) {
+                hospitalInfowindow = new kakao.maps.InfoWindow({
+                    removable: true
+                });
+            }
+
+            data.hospitals.forEach(function(hospital) {
+                // 좌표가 유효한지 확인
+                if (hospital.xpos && hospital.ypos) {
+                    var position = new kakao.maps.LatLng(hospital.ypos, hospital.xpos);
+
+                    // 마커 생성
+                    var marker = new kakao.maps.Marker({
+                        position: position,
+                        map: map
+                    });
+
+                    // 마커에 병원 정보 저장
+                    marker.hospitalData = hospital;
+
+                    // 마커 클릭 이벤트
+                    kakao.maps.event.addListener(marker, 'click', function() {
+                        // 마커의 인덱스를 찾아서 상세 정보 패널 표시
+                        var markerIndex = hospitalMarkers.indexOf(marker);
+                        if (markerIndex >= 0) {
+                            // 사이드바가 닫혀있으면 열기
+                            var sidebar = document.getElementById('sidebar');
+                            if (!sidebar.classList.contains('open')) {
+                                showHospitalSidebar();
+                            }
+                            // 상세 정보 패널 표시
+                            showHospitalDetail(markerIndex);
+                        }
+                    });
+
+                    hospitalMarkers.push(marker);
+                }
+            });
+
+            // 5. 사이드바에 병원 리스트 표시
+            displayHospitalList(data.hospitals);
+
+        } else {
+            resultsContent.innerHTML = '<p style="color: #666;">현재 화면에 병원이 없습니다.</p>';
+        }
+
+    } catch (error) {
+        console.error('병원 검색 오류:', error);
+        resultsContent.innerHTML = '<p style="color: #e74c3c;">병원 검색 중 오류가 발생했습니다.</p>';
+    }
+}
+
+// 사이드바에 병원 리스트 표시
+function displayHospitalList(hospitals) {
+    var resultsContent = document.getElementById('hospitalResultsContent');
+
+    if (hospitals.length === 0) {
+        resultsContent.innerHTML = '<p style="color: #666;">현재 화면에 병원이 없습니다.</p>';
+        return;
+    }
+
+    var html = '<div style="margin-bottom: 10px; padding: 10px; background: #f8f9fa; border-radius: 4px;">' +
+        '<strong>검색 결과: ' + hospitals.length + '개 병원</strong>' +
+        '</div>';
+
+    hospitals.forEach(function(hospital, index) {
+        html += '<div class="hospital-item" style="padding: 12px; margin-bottom: 8px; ' +
+            'border: 1px solid #ddd; border-radius: 4px; cursor: pointer; ' +
+            'transition: background 0.2s;" ' +
+            'onmouseover="this.style.background=\'#f8f9fa\'" ' +
+            'onmouseout="this.style.background=\'white\'" ' +
+            'onclick="showHospitalDetail(' + index + ')">' +
+            '<h4 style="margin: 0 0 5px 0; font-size: 14px;">' + hospital.yadmnm + '</h4>' +
+            '<p style="margin: 3px 0; font-size: 12px; color: #666;">' +
+            (hospital.clcdnm || '종별 정보 없음') + '</p>' +
+            '<p style="margin: 3px 0; font-size: 11px; color: #888;">' +
+            (hospital.addr || '주소 정보 없음') + '</p>' +
+            '</div>';
+    });
+
+    resultsContent.innerHTML = html;
+}
+
+// 병원 마커에 포커스 (리스트 클릭 시)
+function focusHospitalMarker(index) {
+    if (index >= 0 && index < hospitalMarkers.length) {
+        var marker = hospitalMarkers[index];
+        var hospital = marker.hospitalData;
+
+        // 지도 중심을 해당 마커로 이동
+        map.panTo(marker.getPosition());
+
+        // InfoWindow 표시
+        var content = '<div style="padding:10px;min-width:200px;">' +
+            '<h4 style="margin:0 0 5px 0;">' + hospital.yadmnm + '</h4>' +
+            '<p style="margin:3px 0;font-size:12px;color:#666;">' +
+            (hospital.clcdnm || '종별 정보 없음') + '</p>' +
+            '<p style="margin:3px 0;font-size:12px;">' + (hospital.addr || '주소 정보 없음') + '</p>' +
+            '<p style="margin:3px 0;font-size:12px;">' +
+            '전화: ' + (hospital.telno || '정보 없음') + '</p>' +
+            '</div>';
+
+        hospitalInfowindow.setContent(content);
+        hospitalInfowindow.open(map, marker);
+    }
+}
+
+// 병원 상세 정보 표시
+async function showHospitalDetail(index) {
+    if (index < 0 || index >= hospitalMarkers.length) return;
+
+    var marker = hospitalMarkers[index];
+    var hospital = marker.hospitalData;
+    currentSelectedHospital = hospital;
+
+    // 지도 중심을 해당 마커로 이동
+    map.panTo(marker.getPosition());
+
+    // 상세 패널 표시
+    var detailPanel = document.getElementById('hospitalDetailPanel');
+    var detailContent = document.getElementById('hospitalDetailContent');
+    var sidebarToggle = document.getElementById('sidebarToggle');
+
+    // 로딩 표시
+    detailContent.innerHTML = '<div style="padding: 20px; text-align: center;">로딩 중...</div>';
+
+    // 패널 열기
+    detailPanel.classList.add('open');
+    sidebarToggle.classList.add('detail-open');
+
+    try {
+        // 서버에서 상세 정보 가져오기
+        const response = await fetch('/getHospitalDetail/' + hospital.ykiho);
+        const result = await response.json();
+
+        if (!result.success) {
+            detailContent.innerHTML = '<div style="padding: 20px;">상세 정보를 불러오는데 실패했습니다.</div>';
+            return;
+        }
+
+        const data = result.data;
+        const basic = data.basic || {};
+        const departments = data.departments || [];
+        const equipment = data.equipment || [];
+        const detail = data.detail || {};
+
+        // 상세 정보 HTML 생성
+        var html = '<h2 class="detail-hospital-name">' + (basic.yadmnm || hospital.yadmnm) + '</h2>';
+
+        if (basic.clcdnm || hospital.clcdnm) {
+            html += '<span class="detail-hospital-category">' + (basic.clcdnm || hospital.clcdnm) + '</span>';
+        }
+
+        // 진료과목
+        if (departments.length > 0) {
+            html += '<div class="detail-info-section">' +
+                '<div class="detail-info-label">진료과목</div>' +
+                '<div class="detail-info-value">';
+            departments.forEach(function(dept) {
+                html += dept.dgsbjtcdnm;
+                // 전문의가 1명 이상인 경우에만 전문의 수 표시
+                if (dept.dgsbjtprsdrcnt && dept.dgsbjtprsdrcnt >= 1) {
+                    html += ' (전문의 ' + dept.dgsbjtprsdrcnt + '명)';
+                }
+                html += '<br>';
+            });
+            html += '</div></div>';
+        }
+
+        // 개원일
+        if (basic.estbdd) {
+            html += '<div class="detail-info-section">' +
+                '<div class="detail-info-label">개원일</div>' +
+                '<div class="detail-info-value">' + basic.estbdd + '</div>' +
+                '</div>';
+        }
+
+        // 보유장비
+        if (equipment.length > 0) {
+            html += '<div class="detail-info-section">' +
+                '<div class="detail-info-label">보유장비</div>' +
+                '<div class="detail-info-value">';
+            equipment.forEach(function(equip) {
+                html += equip.oftcdnm + ' (' + equip.oftcnt + '대)<br>';
+            });
+            html += '</div></div>';
+        }
+
+        // 전화번호
+        if (basic.telno || hospital.telno) {
+            html += '<div class="detail-info-section">' +
+                '<div class="detail-info-label">전화번호</div>' +
+                '<div class="detail-info-value">' + (basic.telno || hospital.telno) + '</div>' +
+                '</div>';
+        }
+
+        // 주소
+        html += '<div class="detail-info-section">' +
+            '<div class="detail-info-label">주소</div>' +
+            '<div class="detail-info-value">' + (basic.addr || hospital.addr || '정보 없음') + '</div>' +
+            '</div>';
+
+        // 홈페이지
+        if (basic.hospurl) {
+            html += '<div class="detail-info-section">' +
+                '<div class="detail-info-label">홈페이지</div>' +
+                '<div class="detail-info-value"><a href="' + basic.hospurl + '" target="_blank">' + basic.hospurl + '</a></div>' +
+                '</div>';
+        }
+
+        // 진료시간
+        if (detail.trmtMonStart || detail.trmtTueStart || detail.trmtWedStart ||
+            detail.trmtThuStart || detail.trmtFriStart || detail.trmtSatStart || detail.trmtSunStart) {
+            html += '<div class="detail-info-section">' +
+                '<div class="detail-info-label">진료시간</div>' +
+                '<div class="detail-info-value">';
+
+            if (detail.trmtMonStart && detail.trmtMonEnd) {
+                html += '월요일: ' + detail.trmtMonStart + ' ~ ' + detail.trmtMonEnd + '<br>';
+            }
+            if (detail.trmtTueStart && detail.trmtTueEnd) {
+                html += '화요일: ' + detail.trmtTueStart + ' ~ ' + detail.trmtTueEnd + '<br>';
+            }
+            if (detail.trmtWedStart && detail.trmtWedEnd) {
+                html += '수요일: ' + detail.trmtWedStart + ' ~ ' + detail.trmtWedEnd + '<br>';
+            }
+            if (detail.trmtThuStart && detail.trmtThuEnd) {
+                html += '목요일: ' + detail.trmtThuStart + ' ~ ' + detail.trmtThuEnd + '<br>';
+            }
+            if (detail.trmtFriStart && detail.trmtFriEnd) {
+                html += '금요일: ' + detail.trmtFriStart + ' ~ ' + detail.trmtFriEnd + '<br>';
+            }
+            if (detail.trmtSatStart && detail.trmtSatEnd) {
+                html += '토요일: ' + detail.trmtSatStart + ' ~ ' + detail.trmtSatEnd + '<br>';
+            }
+            if (detail.trmtSunStart && detail.trmtSunEnd) {
+                html += '일요일: ' + detail.trmtSunStart + ' ~ ' + detail.trmtSunEnd + '<br>';
+            }
+
+            if (detail.lunchWeek) {
+                html += '점심시간(평일): ' + detail.lunchWeek + '<br>';
+            }
+            if (detail.lunchSat) {
+                html += '점심시간(토요일): ' + detail.lunchSat + '<br>';
+            }
+
+            html += '</div></div>';
+        }
+
+        // 주차 정보
+        if (detail.parkXpnsYn || detail.parkQty) {
+            html += '<div class="detail-info-section">' +
+                '<div class="detail-info-label">주차 정보</div>' +
+                '<div class="detail-info-value">';
+
+            if (detail.parkXpnsYn) {
+                var parkingFee = detail.parkXpnsYn === 'Y' ? '유료' : (detail.parkXpnsYn === 'N' ? '무료' : detail.parkXpnsYn);
+                html += '주차 요금: ' + parkingFee + '<br>';
+            }
+            if (detail.parkQty) {
+                html += '주차 가능대수: ' + detail.parkQty + '대';
+            }
+
+            html += '</div></div>';
+        }
+
+        detailContent.innerHTML = html;
+
+    } catch (error) {
+        console.error('병원 상세 정보 로딩 오류:', error);
+        detailContent.innerHTML = '<div style="padding: 20px;">상세 정보를 불러오는데 실패했습니다.</div>';
+    }
+}
+
+// 병원 상세 정보 닫기
+function closeHospitalDetail(shouldClearSelection = true) {
+    var detailPanel = document.getElementById('hospitalDetailPanel');
+    var sidebarToggle = document.getElementById('sidebarToggle');
+
+    // 패널 닫기
+    detailPanel.classList.remove('open');
+
+    // 토글 버튼 위치 복원
+    sidebarToggle.classList.remove('detail-open');
+
+    // X 버튼으로 닫을 때만 선택 해제
+    if (shouldClearSelection) {
+        currentSelectedHospital = null;
+    }
+}
+
+// 진료과목 목록 로드
+async function loadDepartments() {
+    try {
+        const response = await fetch('/getDepartments');
+        if (!response.ok) {
+            throw new Error('진료과목 목록 조회 실패');
+        }
+
+        const data = await response.json();
+        console.log('진료과목 목록:', data);
+
+        if (data.success && data.departments && data.departments.length > 0) {
+            const select = document.getElementById('departmentFilter');
+
+            // 기존 옵션 제거 (전체 옵션 제외)
+            while (select.options.length > 1) {
+                select.remove(1);
+            }
+
+            // 새로운 옵션 추가
+            data.departments.forEach(function(dept) {
+                const option = document.createElement('option');
+                option.value = dept;
+                option.textContent = dept;
+                select.appendChild(option);
+            });
+
+            console.log(`${data.departments.length}개 진료과목 로드 완료`);
+        }
+    } catch (error) {
+        console.error('진료과목 목록 로드 오류:', error);
+    }
 }
 
 // 사이드바 토글 버튼 이벤트 리스너
@@ -24,6 +504,10 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('sidebarToggle').addEventListener('click', toggleSidebar);
     // ✨ 새로 추가: 그리기 버튼 초기 상태 설정
     initializeDrawingButtonStates();
+    // 초기 상태: 인구수 탭 활성화
+    document.getElementById('navPopulation').classList.add('active');
+    // 진료과목 목록 로드
+    loadDepartments();
 });
 
 // 지도타입 컨트롤의 지도 또는 스카이뷰 버튼을 클릭하면 호출되어 지도타입을 바꾸는 함수입니다

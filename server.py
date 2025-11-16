@@ -704,6 +704,251 @@ async def reset_cache_stats():
         "message": "캐시 통계가 초기화되었습니다"
     }
 
+# 병원 검색 데이터 모델
+class HospitalBounds(BaseModel):
+    sw_lat: float  # 남서쪽 위도
+    sw_lng: float  # 남서쪽 경도
+    ne_lat: float  # 북동쪽 위도
+    ne_lng: float  # 북동쪽 경도
+    department: Optional[str] = ""  # 진료과목 필터 (빈 문자열이면 전체)
+    has_specialist: bool = False  # 전문의 필터
+
+# 병원 검색 엔드포인트
+@app.post("/getHospitals")
+async def get_hospitals(bounds: HospitalBounds):
+    """현재 지도 영역 내의 모든 병원을 조회합니다 (페이지네이션 및 필터 적용)"""
+    try:
+        logger.info(f"병원 검색 요청: sw({bounds.sw_lat}, {bounds.sw_lng}), ne({bounds.ne_lat}, {bounds.ne_lng}), department={bounds.department}, has_specialist={bounds.has_specialist}")
+
+        # 필터가 있는 경우: 먼저 hospital_departments에서 조건에 맞는 ykiho 목록 추출
+        filtered_ykihos = None
+        if bounds.department or bounds.has_specialist:
+            filtered_ykihos = set()
+            page_size = 1000
+            offset = 0
+            page_num = 0
+
+            while True:
+                page_num += 1
+                # hospital_departments 테이블에서 필터링
+                query = supabase.table('hospital_departments').select('ykiho')
+
+                # 진료과목 필터
+                if bounds.department:
+                    query = query.eq('dgsbjtcdnm', bounds.department)
+
+                # 전문의 필터
+                if bounds.has_specialist:
+                    query = query.gte('dgsbjtprsdrcnt', 1)
+
+                result = query.range(offset, offset + page_size - 1).execute()
+
+                if not result.data:
+                    break
+
+                for row in result.data:
+                    if row.get('ykiho'):
+                        filtered_ykihos.add(row['ykiho'])
+
+                logger.info(f"필터 페이지 {page_num}: {len(result.data)}개 행 조회, 누적 유니크 병원: {len(filtered_ykihos)}개")
+
+                if len(result.data) < page_size:
+                    break
+
+                offset += page_size
+
+            logger.info(f"필터 적용 결과: {len(filtered_ykihos)}개 병원 ID 추출")
+
+            # 필터 결과가 없으면 빈 결과 반환
+            if not filtered_ykihos:
+                return {
+                    "success": True,
+                    "count": 0,
+                    "hospitals": []
+                }
+
+        # 모든 병원을 저장할 리스트
+        all_hospitals = []
+
+        # 페이지네이션을 사용하여 모든 데이터 조회
+        page_size = 1000
+        offset = 0
+        page_num = 0
+
+        while True:
+            page_num += 1
+            # Supabase에서 hospital_basic 테이블 조회
+            # xpos는 경도(longitude), ypos는 위도(latitude)
+            query = supabase.table('hospital_basic') \
+                .select('ykiho, yadmnm, xpos, ypos, addr, telno, clcdnm') \
+                .gte('ypos', bounds.sw_lat) \
+                .lte('ypos', bounds.ne_lat) \
+                .gte('xpos', bounds.sw_lng) \
+                .lte('xpos', bounds.ne_lng)
+
+            result = query.range(offset, offset + page_size - 1).execute()
+
+            if not result.data:
+                break
+
+            # 필터가 있는 경우 ykiho로 필터링
+            if filtered_ykihos is not None:
+                filtered_data = [h for h in result.data if h.get('ykiho') in filtered_ykihos]
+                all_hospitals.extend(filtered_data)
+            else:
+                all_hospitals.extend(result.data)
+
+            logger.info(f"페이지 {page_num}: {len(result.data)}개 병원 조회, 누적: {len(all_hospitals)}개")
+
+            # 마지막 페이지면 종료
+            if len(result.data) < page_size:
+                break
+
+            offset += page_size
+
+        logger.info(f"병원 검색 결과: 총 {len(all_hospitals)}개 병원 발견")
+
+        return {
+            "success": True,
+            "count": len(all_hospitals),
+            "hospitals": all_hospitals
+        }
+
+    except Exception as e:
+        logger.error(f"병원 검색 오류: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"병원 검색 중 오류 발생: {str(e)}")
+
+# 진료과목 목록 조회 엔드포인트
+@app.get("/getDepartments")
+async def get_departments():
+    """진료과목 목록을 반환합니다 (하드코딩)"""
+    try:
+        logger.info("진료과목 목록 조회 요청")
+
+        # 하드코딩된 진료과목 목록 (데이터베이스에서 추출한 유니크 값)
+        departments = [
+            '가정의학과', '결핵과', '구강내과', '구강병리과', '구강악안면외과',
+            '내과', '마취통증의학과', '방사선종양학과', '병리과', '비뇨의학과',
+            '사상체질과', '산부인과', '성형외과', '소아청소년과', '소아치과',
+            '신경과', '신경외과', '심장혈관흉부외과', '안과', '영상의학과',
+            '영상치의학과', '예방의학과', '예방치과', '외과', '응급의학과',
+            '이비인후과', '재활의학과', '정신건강의학과', '정형외과', '직업환경의학과',
+            '진단검사의학과', '치과', '치과교정과', '치과보존과', '치과보철과',
+            '치주과', '침구과', '통합치의학과', '피부과', '한방내과',
+            '한방부인과', '한방소아과', '한방신경정신과', '한방안·이비인후·피부과',
+            '한방응급', '한방재활의학과', '핵의학과'
+        ]
+
+        logger.info(f"진료과목 목록 조회 결과: {len(departments)}개 진료과목")
+
+        return {
+            "success": True,
+            "count": len(departments),
+            "departments": departments
+        }
+
+    except Exception as e:
+        logger.error(f"진료과목 목록 조회 오류: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"진료과목 목록 조회 중 오류 발생: {str(e)}")
+
+@app.get("/getHospitalDetail/{ykiho}")
+async def get_hospital_detail(ykiho: str):
+    """특정 병원의 상세 정보를 조회합니다"""
+    try:
+        result_data = {}
+
+        # 1. hospital_basic에서 기본 정보 조회
+        basic_result = supabase.table('hospital_basic').select('*').eq('ykiho', ykiho).execute()
+        if basic_result.data and len(basic_result.data) > 0:
+            basic_info = basic_result.data[0]
+            result_data['basic'] = {
+                'yadmnm': basic_info.get('yadmnm', ''),
+                'clcdnm': basic_info.get('clcdnm', ''),
+                'addr': basic_info.get('addr', ''),
+                'telno': basic_info.get('telno', ''),
+                'hospurl': basic_info.get('hospurl', ''),
+                'estbdd': basic_info.get('estbdd', '')
+            }
+        else:
+            result_data['basic'] = {}
+
+        # 2. hospital_departments에서 진료과목 및 전문의 수 조회 (전문의 수 1이상만)
+        departments = []
+        offset = 0
+        page_size = 1000
+
+        while True:
+            dept_result = supabase.table('hospital_departments').select('dgsbjtcdnm, dgsbjtprsdrcnt')\
+                .eq('ykiho', ykiho)\
+                .range(offset, offset + page_size - 1)\
+                .execute()
+
+            if dept_result.data:
+                departments.extend(dept_result.data)
+                if len(dept_result.data) < page_size:
+                    break
+                offset += page_size
+            else:
+                break
+
+        result_data['departments'] = departments
+
+        # 3. hospital_medical_equipment에서 보유장비 조회
+        equipment = []
+        offset = 0
+
+        while True:
+            equip_result = supabase.table('hospital_medical_equipment').select('oftcdnm, oftcnt')\
+                .eq('ykiho', ykiho)\
+                .range(offset, offset + page_size - 1)\
+                .execute()
+
+            if equip_result.data:
+                equipment.extend(equip_result.data)
+                if len(equip_result.data) < page_size:
+                    break
+                offset += page_size
+            else:
+                break
+
+        result_data['equipment'] = equipment
+
+        # 4. hospital_detail에서 진료시간 및 주차 정보 조회
+        detail_result = supabase.table('hospital_detail').select('*').eq('ykiho', ykiho).execute()
+        if detail_result.data and len(detail_result.data) > 0:
+            detail_info = detail_result.data[0]
+            result_data['detail'] = {
+                'trmtMonStart': detail_info.get('trmtmonstart', ''),
+                'trmtMonEnd': detail_info.get('trmtmonend', ''),
+                'trmtTueStart': detail_info.get('trmttuestart', ''),
+                'trmtTueEnd': detail_info.get('trmttueend', ''),
+                'trmtWedStart': detail_info.get('trmtwedstart', ''),
+                'trmtWedEnd': detail_info.get('trmtwedend', ''),
+                'trmtThuStart': detail_info.get('trmtthustart', ''),
+                'trmtThuEnd': detail_info.get('trmtthuend', ''),
+                'trmtFriStart': detail_info.get('trmtfristart', ''),
+                'trmtFriEnd': detail_info.get('trmtfriend', ''),
+                'trmtSatStart': detail_info.get('trmtsatstart', ''),
+                'trmtSatEnd': detail_info.get('trmtsatend', ''),
+                'trmtSunStart': detail_info.get('trmtsunstart', ''),
+                'trmtSunEnd': detail_info.get('trmtsunend', ''),
+                'lunchWeek': detail_info.get('lunchweek', ''),
+                'lunchSat': detail_info.get('lunchsat', ''),
+                'parkXpnsYn': detail_info.get('parkxpnsyn', ''),
+                'parkQty': detail_info.get('parkqty', '')
+            }
+        else:
+            result_data['detail'] = {}
+
+        return {
+            "success": True,
+            "data": result_data
+        }
+
+    except Exception as e:
+        logger.error(f"병원 상세 정보 조회 오류 (ykiho: {ykiho}): {str(e)}")
+        raise HTTPException(status_code=500, detail=f"병원 상세 정보 조회 중 오류 발생: {str(e)}")
+
 if __name__ == "__main__":
     # 환경 변수에서 호스트와 포트 설정 (기본값 제공)
     host = os.getenv("HOST", "0.0.0.0")

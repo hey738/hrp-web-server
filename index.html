@@ -8,8 +8,27 @@
     <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=8d14685beb674db45953e6e3f0d85a92&libraries=drawing"></script>
 </head>
 <body>
+    <!-- 좌측 네비게이션 바 -->
+    <div class="navbar">
+        <div class="navbar-item navbar-logo" id="navLogo">
+            <span>로고</span>
+        </div>
+        <div class="navbar-item" id="navPopulation" onclick="showPopulationSidebar()">
+            <span>인구수</span>
+        </div>
+        <div class="navbar-item" id="navHospital" onclick="showHospitalSidebar()">
+            <span>병원</span>
+        </div>
+        <!-- 사이드바 토글 버튼 (네비게이션 바 내부) -->
+        <div class="sidebar-toggle" id="sidebarToggle">
+            <span>&gt;</span>
+        </div>
+    </div>
+
     <div class="sidebar" id="sidebar">
         <div class="sidebar-content">
+            <!-- 인구수 콘텐츠 -->
+            <div id="populationContent">
             <!-- 선택 방식 -->
             <div class="selection-mode">
                 <h3>선택 방식</h3>
@@ -58,11 +77,60 @@
                     결과가 여기에 표시됩니다.
                 </div>
             </div>
+            </div>
+
+            <!-- 병원 콘텐츠 -->
+            <div id="hospitalContent" style="display: none;">
+                <!-- 필터 섹션 -->
+                <div class="section">
+                    <h3>검색 필터</h3>
+
+                    <!-- 진료과목 필터 -->
+                    <div class="filter-group">
+                        <label class="filter-label">진료과목</label>
+                        <select id="departmentFilter" class="filter-select">
+                            <option value="">전체</option>
+                            <!-- 진료과목 옵션은 JavaScript로 동적 생성 -->
+                        </select>
+                    </div>
+
+                    <!-- 전문의 여부 필터 -->
+                    <div class="filter-group">
+                        <label class="filter-label">전문의 여부</label>
+                        <div class="filter-checkbox-group">
+                            <label class="filter-checkbox">
+                                <input type="checkbox" id="specialistFilter" value="specialist">
+                                <span>전문의 있는 병원만</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h3>병원 검색</h3>
+                    <button class="region-selectors" style="width: 100%; padding: 12px;" onclick="searchHospitals()">병원 검색</button>
+                </div>
+
+                <div id="hospitalResultsSection" class="section">
+                    <h3>검색 결과</h3>
+                    <div id="hospitalResultsContent">
+                        검색 버튼을 눌러 병원을 검색하세요.
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
-    <div class="sidebar-toggle" id="sidebarToggle">
-        <span>☰</span>
+
+    <!-- 병원 상세 정보 패널 -->
+    <div class="hospital-detail-panel" id="hospitalDetailPanel">
+        <div class="detail-header">
+            <button class="detail-close-btn" onclick="closeHospitalDetail()">&times;</button>
+        </div>
+        <div class="detail-content" id="hospitalDetailContent">
+            <!-- 상세 정보가 여기에 표시됩니다 -->
+        </div>
     </div>
+
     <div class="map_wrap" id="mapWrap">
         <div id="map" style="width:100%;height:100%;position:relative;overflow:hidden;"></div>
         <!-- 지도타입 컨트롤 div 입니다 -->
