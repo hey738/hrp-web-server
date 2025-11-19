@@ -31,6 +31,13 @@ html, body {width:100%;height:100%;margin:0;padding:0;}
     cursor: default;
 }
 
+.navbar-logo-img {
+    width: 42px;
+    height: 42px;
+    border-radius: 6px;
+    object-fit: cover;
+}
+
 .navbar-item:not(.navbar-logo) {
     height: 66px;
     font-size: 13px;
@@ -42,12 +49,12 @@ html, body {width:100%;height:100%;margin:0;padding:0;}
 }
 
 .navbar-item.active {
-    background-color: #2db400;
+    background-color: #58534f;
     color: #fff;
 }
 
 .navbar-item.active:hover {
-    background-color: #28a100;
+    background-color: #4a4540;
 }
 
 .sidebar {
@@ -205,6 +212,75 @@ html, body {width:100%;height:100%;margin:0;padding:0;}
     line-height: 1.6;
 }
 
+/* 전문의 정보 테이블 */
+.specialist-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin-top: 5px;
+    font-size: 13px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.specialist-table thead th {
+    background-color: #f5f5f5;
+    padding: 0 12px;
+    height: 40px;
+    text-align: left;
+    font-weight: 600;
+    color: #333;
+    border-bottom: 1px solid #ddd;
+    border-right: 1px solid #ddd;
+}
+
+.specialist-table thead th:last-child {
+    border-right: none;
+}
+
+.specialist-table tbody td {
+    padding: 0 12px;
+    height: 40px;
+    border-bottom: 1px solid #ddd;
+    border-right: 1px solid #ddd;
+    color: #333;
+}
+
+.specialist-table tbody td:last-child {
+    border-right: none;
+}
+
+.specialist-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.specialist-table tbody tr:hover {
+    background-color: #f9f9f9;
+}
+
+/* 진료과목 태그 */
+.department-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 5px;
+}
+
+.dept-tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 12px;
+    height: 30px;
+    background-color: #f5f5f5;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    font-size: 12px;
+    color: #333;
+    white-space: nowrap;
+    box-sizing: border-box;
+}
+
 /* 필터 관련 스타일 */
 .filter-group {
     margin-bottom: 15px;
@@ -222,7 +298,7 @@ html, body {width:100%;height:100%;margin:0;padding:0;}
     width: 100%;
     padding: 10px 12px;
     border: 1px solid #ddd;
-    border-radius: 4px;
+    border-radius: 20px;
     background-color: #fff;
     font-size: 13px;
     color: #333;
@@ -240,47 +316,64 @@ html, body {width:100%;height:100%;margin:0;padding:0;}
     box-shadow: 0 0 0 2px rgba(45, 180, 0, 0.1);
 }
 
-.filter-checkbox-group {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.filter-checkbox {
-    display: flex;
+/* Pill 버튼 스타일 */
+.pill-button {
+    display: inline-flex;
     align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    border: 2px solid #ddd;
+    border-radius: 50px;
+    background-color: #fff;
+    color: #666;
+    font-size: 14px;
+    font-weight: 500;
     cursor: pointer;
-    font-size: 13px;
-    color: #333;
-    padding: 8px 0;
+    transition: all 0.2s ease;
 }
 
-.filter-checkbox input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
-    margin-right: 8px;
-    cursor: pointer;
-    accent-color: #2db400;
+.pill-button:hover {
+    border-color: #2db400;
 }
 
-.filter-checkbox span {
-    user-select: none;
+.pill-button:focus {
+    outline: none;
+    border-color: #2db400;
+    box-shadow: 0 0 0 2px rgba(45, 180, 0, 0.1);
 }
 
-.filter-checkbox:hover {
+.pill-button[aria-checked="true"] {
+    border-color: #2db400;
+    background-color: #f0f9ec;
     color: #2db400;
+}
+
+.pill-icon {
+    font-size: 16px;
+    line-height: 1;
+}
+
+.pill-text {
+    user-select: none;
 }
 
 .map_wrap {position:fixed;left:63px;top:0;right:0;bottom:0;overflow:hidden;}
 .radius_border{border:1px solid #919191;border-radius:5px;}     
 .custom_typecontrol {position:absolute;top:10px;right:10px;overflow:hidden;width:130px;height:30px;margin:0;padding:0;z-index:1;font-size:12px;font-family:'Malgun Gothic', '맑은 고딕', sans-serif;}
 .custom_typecontrol span {display:block;width:65px;height:30px;float:left;text-align:center;line-height:30px;cursor:pointer;}
-.custom_typecontrol .btn {background:#fff;background:linear-gradient(#fff,  #e6e6e6);}       
+.custom_typecontrol .btn {background:#fff;background:linear-gradient(#fff,  #e6e6e6);}
 .custom_typecontrol .btn:hover {background:#f5f5f5;background:linear-gradient(#f5f5f5,#e3e3e3);}
-.custom_typecontrol .btn:active {background:#e6e6e6;background:linear-gradient(#e6e6e6, #fff);}    
+.custom_typecontrol .btn:active {background:#e6e6e6;background:linear-gradient(#e6e6e6, #fff);}
 .custom_typecontrol .selected_btn {color:#fff;background:#425470;background:linear-gradient(#425470, #5b6d8a);}
-.custom_typecontrol .selected_btn:hover {color:#fff;}   
-.custom_zoomcontrol {position:absolute;top:50px;right:10px;width:36px;height:80px;overflow:hidden;z-index:1;background-color:#f5f5f5;} 
+.custom_typecontrol .selected_btn:hover {color:#fff;}
+.custom_mapcontrol {position:absolute;top:50px;right:10px;overflow:hidden;width:42px;height:84px;margin:0;padding:0;z-index:1;font-size:9px;font-family:'Malgun Gothic', '맑은 고딕', sans-serif;}
+.custom_mapcontrol span {display:block;width:42px;height:42px;text-align:center;line-height:42px;cursor:pointer;}
+.custom_mapcontrol .btn {background:#fff;background:linear-gradient(#fff,  #e6e6e6);}
+.custom_mapcontrol .btn:hover {background:#f5f5f5;background:linear-gradient(#f5f5f5,#e3e3e3);}
+.custom_mapcontrol .btn:active {background:#e6e6e6;background:linear-gradient(#e6e6e6, #fff);}
+.custom_mapcontrol .selected_btn {color:#fff;background:#425470;background:linear-gradient(#425470, #5b6d8a);}
+.custom_mapcontrol .selected_btn:hover {color:#fff;}   
+.custom_zoomcontrol {position:absolute;bottom:10px;right:10px;width:36px;height:80px;overflow:hidden;z-index:1;background-color:#f5f5f5;} 
 .custom_zoomcontrol span {display:block;width:36px;height:40px;text-align:center;cursor:pointer;}     
 .custom_zoomcontrol span img {width:15px;height:15px;padding:12px 0;border:none;}             
 .custom_zoomcontrol span:first-child{border-bottom:1px solid #bfbfbf;}
@@ -478,6 +571,8 @@ html, body {width:100%;height:100%;margin:0;padding:0;}
     background-color: #fff;
     border-radius: 6px;
     border: 1px solid #dee2e6;
+    position: relative;
+    padding-bottom: 60px;
 }
 
 .age-distribution h5 {
@@ -550,15 +645,20 @@ html, body {width:100%;height:100%;margin:0;padding:0;}
 /* 합계 표시 영역 */
 .table-selection-summary {
     display: none;
+    position: absolute;
+    bottom: 10px;
+    left: 15px;
+    right: 15px;
     align-items: center;
     gap: 8px;
-    margin-top: 12px;
+    margin-top: 0;
     padding: 10px 15px;
     background-color: #f0f8ff;
     border: 1px solid #0078d4;
     border-radius: 4px;
     font-size: 13px;
     font-weight: 600;
+    z-index: 10;
 }
 
 .table-selection-summary .summary-label {
@@ -772,4 +872,67 @@ html, body {width:100%;height:100%;margin:0;padding:0;}
     .age-distribution-table tbody td {
         padding: 5px 6px;
     }
+}
+
+/* 거리뷰 팝업 패널 스타일 */
+.roadview-popup-panel {
+    position: fixed;
+    top: 90px;
+    right: 10px;
+    width: 500px;
+    height: 400px;
+    background-color: #fff;
+    border: 2px solid #919191;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    z-index: 1003;
+    display: none;
+    overflow: hidden;
+}
+
+.roadview-popup-panel.open {
+    display: block;
+}
+
+.roadview-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 15px;
+    background-color: #f5f5f5;
+    border-bottom: 1px solid #ddd;
+}
+
+.roadview-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+}
+
+.roadview-close-btn {
+    width: 28px;
+    height: 28px;
+    border: none;
+    background-color: #e0e0e0;
+    border-radius: 50%;
+    font-size: 20px;
+    line-height: 1;
+    color: #666;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.roadview-close-btn:hover {
+    background-color: #d0d0d0;
+    color: #333;
+}
+
+.roadview-container {
+    width: 100%;
+    height: calc(100% - 52px);
+    background-color: #f0f0f0;
 }

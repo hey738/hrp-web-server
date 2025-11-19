@@ -10,11 +10,19 @@ var map = new kakao.maps.Map(container, options);
 var regionBoundaryPolygons = [];  // 경계 폴리곤 배열 (MultiPolygon 지원)
 var regionCentroidMarker = null;   // 중심점 마커
 
+// 지적편집도 및 거리뷰 관련 전역 변수
+var useDistrictOverlay = false;  // 지적편집도 오버레이 상태
+var roadviewMode = false;  // 거리뷰 모드 활성화 상태
+var roadview = null;  // 거리뷰 객체
+var roadviewClient = null;  // 거리뷰 클라이언트
+var mapClickListener = null;  // 지도 클릭 이벤트 리스너
+
 // 병원 마커 관리 전역 변수
 var hospitalMarkers = [];  // 병원 마커 배열
 var hospitalInfowindow = null;  // 병원 정보창
 var currentSelectedHospital = null;  // 현재 선택된 병원
 var wasDetailPanelOpenBeforeClose = false;  // 사이드바 닫기 전 상세창이 열려있었는지 기록
+var allHospitalsData = [];  // 서버에서 가져온 전체 병원 데이터 (전문의 정보 포함)
 
 // 사이드바 토글 기능
 function toggleSidebar() {
@@ -87,6 +95,11 @@ function showHospitalSidebar() {
     var populationContent = document.getElementById('populationContent');
     var hospitalContent = document.getElementById('hospitalContent');
 
+    // 그리기 모드 정리
+    manager.cancel();
+    drawingOverlay.setMap(null);
+    resetDrawingButtonStates();
+
     // 사이드바가 닫혀있으면 열기
     if (!sidebar.classList.contains('open')) {
         sidebar.classList.add('open');
@@ -129,23 +142,19 @@ async function searchHospitals() {
         var sw = bounds.getSouthWest();  // 남서쪽 좌표
         var ne = bounds.getNorthEast();  // 북동쪽 좌표
 
-        // 2. 필터 값 가져오기
+        // 2. 필터 값 가져오기 (진료과목만 서버 요청에 사용)
         var departmentFilter = document.getElementById('departmentFilter');
-        var specialistFilter = document.getElementById('specialistFilter');
-
         var department = departmentFilter.value || "";  // 빈 문자열이면 전체
-        var hasSpecialist = specialistFilter.checked;
 
         console.log('Map bounds:', {
             sw_lat: sw.getLat(),
             sw_lng: sw.getLng(),
             ne_lat: ne.getLat(),
             ne_lng: ne.getLng(),
-            department: department,
-            has_specialist: hasSpecialist
+            department: department
         });
 
-        // 3. 서버에 병원 데이터 요청
+        // 3. 서버에 병원 데이터 요청 (전문의 필터는 서버에 보내지 않음)
         const response = await fetch('/getHospitals', {
             method: 'POST',
             headers: {
@@ -157,7 +166,7 @@ async function searchHospitals() {
                 ne_lat: ne.getLat(),
                 ne_lng: ne.getLng(),
                 department: department,
-                has_specialist: hasSpecialist
+                has_specialist: false  // 항상 false로 전송
             })
         });
 
@@ -171,58 +180,93 @@ async function searchHospitals() {
         // 3. 기존 마커 제거
         clearHospitalMarkers();
 
-        // 4. 새로운 마커 생성
+        // 4. 전체 병원 데이터를 전역 변수에 저장 (전문의 정보 포함)
         if (data.success && data.hospitals && data.hospitals.length > 0) {
-            // InfoWindow 초기화
-            if (!hospitalInfowindow) {
-                hospitalInfowindow = new kakao.maps.InfoWindow({
-                    removable: true
-                });
-            }
+            allHospitalsData = data.hospitals;
+            console.log('전체 병원 데이터 저장 완료:', allHospitalsData.length + '개');
 
-            data.hospitals.forEach(function(hospital) {
-                // 좌표가 유효한지 확인
-                if (hospital.xpos && hospital.ypos) {
-                    var position = new kakao.maps.LatLng(hospital.ypos, hospital.xpos);
-
-                    // 마커 생성
-                    var marker = new kakao.maps.Marker({
-                        position: position,
-                        map: map
-                    });
-
-                    // 마커에 병원 정보 저장
-                    marker.hospitalData = hospital;
-
-                    // 마커 클릭 이벤트
-                    kakao.maps.event.addListener(marker, 'click', function() {
-                        // 마커의 인덱스를 찾아서 상세 정보 패널 표시
-                        var markerIndex = hospitalMarkers.indexOf(marker);
-                        if (markerIndex >= 0) {
-                            // 사이드바가 닫혀있으면 열기
-                            var sidebar = document.getElementById('sidebar');
-                            if (!sidebar.classList.contains('open')) {
-                                showHospitalSidebar();
-                            }
-                            // 상세 정보 패널 표시
-                            showHospitalDetail(markerIndex);
-                        }
-                    });
-
-                    hospitalMarkers.push(marker);
-                }
-            });
-
-            // 5. 사이드바에 병원 리스트 표시
-            displayHospitalList(data.hospitals);
-
+            // 5. 클라이언트 측 필터링 및 표시
+            filterAndDisplayHospitals();
         } else {
+            allHospitalsData = [];
             resultsContent.innerHTML = '<p style="color: #666;">현재 화면에 병원이 없습니다.</p>';
         }
 
     } catch (error) {
         console.error('병원 검색 오류:', error);
         resultsContent.innerHTML = '<p style="color: #e74c3c;">병원 검색 중 오류가 발생했습니다.</p>';
+    }
+}
+
+// 클라이언트 측 병원 필터링 및 표시
+function filterAndDisplayHospitals() {
+    // 전문의 필터 토글 버튼 상태 확인
+    var specialistToggle = document.getElementById('specialistFilter');
+    var onlySpecialist = specialistToggle ?
+        specialistToggle.getAttribute('aria-checked') === 'true' : false;
+
+    // 필터링
+    var filteredHospitals = allHospitalsData;
+    if (onlySpecialist) {
+        filteredHospitals = allHospitalsData.filter(function(hospital) {
+            return hospital.has_specialist === true;
+        });
+        console.log('전문의 필터 적용:', filteredHospitals.length + '개 / ' + allHospitalsData.length + '개');
+    } else {
+        console.log('전문의 필터 미적용:', allHospitalsData.length + '개 전체 표시');
+    }
+
+    // 기존 마커 제거
+    clearHospitalMarkers();
+
+    // 필터링된 병원 데이터로 마커 생성
+    if (filteredHospitals.length > 0) {
+        // InfoWindow 초기화
+        if (!hospitalInfowindow) {
+            hospitalInfowindow = new kakao.maps.InfoWindow({
+                removable: true
+            });
+        }
+
+        filteredHospitals.forEach(function(hospital) {
+            // 좌표가 유효한지 확인
+            if (hospital.xpos && hospital.ypos) {
+                var position = new kakao.maps.LatLng(hospital.ypos, hospital.xpos);
+
+                // 마커 생성
+                var marker = new kakao.maps.Marker({
+                    position: position,
+                    map: map
+                });
+
+                // 마커에 병원 정보 저장
+                marker.hospitalData = hospital;
+
+                // 마커 클릭 이벤트
+                kakao.maps.event.addListener(marker, 'click', function() {
+                    // 마커의 인덱스를 찾아서 상세 정보 패널 표시
+                    var markerIndex = hospitalMarkers.indexOf(marker);
+                    if (markerIndex >= 0) {
+                        // 사이드바가 닫혀있으면 열기
+                        var sidebar = document.getElementById('sidebar');
+                        if (!sidebar.classList.contains('open')) {
+                            showHospitalSidebar();
+                        }
+                        // 상세 정보 패널 표시
+                        showHospitalDetail(markerIndex);
+                    }
+                });
+
+                hospitalMarkers.push(marker);
+            }
+        });
+
+        // 사이드바에 병원 리스트 표시
+        displayHospitalList(filteredHospitals);
+
+    } else {
+        var resultsContent = document.getElementById('hospitalResultsContent');
+        resultsContent.innerHTML = '<p style="color: #666;">필터 조건에 맞는 병원이 없습니다.</p>';
     }
 }
 
@@ -327,20 +371,43 @@ async function showHospitalDetail(index) {
             html += '<span class="detail-hospital-category">' + (basic.clcdnm || hospital.clcdnm) + '</span>';
         }
 
-        // 진료과목
+        // 진료과목별 전문의 정보 (전문의가 있는 과목만 테이블로)
+        var departmentsWithSpecialists = departments.filter(function(dept) {
+            return dept.dgsbjtprsdrcnt && dept.dgsbjtprsdrcnt >= 1;
+        });
+
+        if (departmentsWithSpecialists.length > 0) {
+            html += '<div class="detail-info-section">' +
+                '<div class="detail-info-label">진료과목별 전문의 정보</div>' +
+                '<div class="detail-info-value">' +
+                '<table class="specialist-table">' +
+                '<thead><tr>' +
+                '<th>진료과목명</th>' +
+                '<th>전문의 수</th>' +
+                '</tr></thead><tbody>';
+
+            departmentsWithSpecialists.forEach(function(dept) {
+                html += '<tr>' +
+                    '<td>' + dept.dgsbjtcdnm + '</td>' +
+                    '<td>' + dept.dgsbjtprsdrcnt + '명</td>' +
+                    '</tr>';
+            });
+
+            html += '</tbody></table></div></div>';
+        }
+
+        // 진료과목 (모든 과목을 태그로)
         if (departments.length > 0) {
             html += '<div class="detail-info-section">' +
                 '<div class="detail-info-label">진료과목</div>' +
-                '<div class="detail-info-value">';
+                '<div class="detail-info-value">' +
+                '<div class="department-tags">';
+
             departments.forEach(function(dept) {
-                html += dept.dgsbjtcdnm;
-                // 전문의가 1명 이상인 경우에만 전문의 수 표시
-                if (dept.dgsbjtprsdrcnt && dept.dgsbjtprsdrcnt >= 1) {
-                    html += ' (전문의 ' + dept.dgsbjtprsdrcnt + '명)';
-                }
-                html += '<br>';
+                html += '<span class="dept-tag">' + dept.dgsbjtcdnm + '</span>';
             });
-            html += '</div></div>';
+
+            html += '</div></div></div>';
         }
 
         // 개원일
@@ -508,6 +575,22 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('navPopulation').classList.add('active');
     // 진료과목 목록 로드
     loadDepartments();
+
+    // 전문의 필터 토글 버튼 이벤트 리스너 추가
+    var specialistToggle = document.getElementById('specialistFilter');
+    if (specialistToggle) {
+        specialistToggle.addEventListener('click', function() {
+            // 토글 상태 변경
+            var isChecked = this.getAttribute('aria-checked') === 'true';
+            this.setAttribute('aria-checked', !isChecked);
+
+            // 병원 데이터가 있을 때만 필터링 재실행
+            if (allHospitalsData && allHospitalsData.length > 0) {
+                console.log('전문의 필터 변경됨:', !isChecked);
+                filterAndDisplayHospitals();
+            }
+        });
+    }
 });
 
 // 지도타입 컨트롤의 지도 또는 스카이뷰 버튼을 클릭하면 호출되어 지도타입을 바꾸는 함수입니다
@@ -1597,13 +1680,13 @@ function getBoundaryCacheStats() {
     try {
         const keys = Object.keys(sessionStorage);
         const boundaryKeys = keys.filter(key => key.startsWith('boundary_'));
-        
+
         let totalSize = 0;
         boundaryKeys.forEach(key => {
             const item = sessionStorage.getItem(key);
             totalSize += item ? item.length : 0;
         });
-        
+
         return {
             count: boundaryKeys.length,
             totalSize: totalSize,
@@ -1614,4 +1697,114 @@ function getBoundaryCacheStats() {
         console.error('캐시 통계 조회 오류:', error);
         return { count: 0, totalSize: 0, totalSizeKB: '0', keys: [] };
     }
+}
+
+// ==================== 지적편집도 토글 기능 ====================
+
+/**
+ * 지적편집도 오버레이 토글
+ */
+function toggleUseDistrict() {
+    var btnUseDistrict = document.getElementById('btnUseDistrict');
+
+    if (useDistrictOverlay) {
+        // 지적편집도 오버레이 제거
+        map.removeOverlayMapTypeId(kakao.maps.MapTypeId.USE_DISTRICT);
+        useDistrictOverlay = false;
+        btnUseDistrict.className = 'btn';
+        console.log('지적편집도 오버레이 비활성화');
+    } else {
+        // 지적편집도 오버레이 추가
+        map.addOverlayMapTypeId(kakao.maps.MapTypeId.USE_DISTRICT);
+        useDistrictOverlay = true;
+        btnUseDistrict.className = 'selected_btn';
+        console.log('지적편집도 오버레이 활성화');
+    }
+}
+
+// ==================== 거리뷰 토글 기능 ====================
+
+/**
+ * 거리뷰 토글 모드 활성화/비활성화
+ */
+function toggleRoadview() {
+    var btnRoadview = document.getElementById('btnRoadview');
+
+    if (roadviewMode) {
+        // 거리뷰 모드 비활성화
+        roadviewMode = false;
+        btnRoadview.className = 'btn';
+
+        // ROADVIEW 레이어 오버레이 제거
+        map.removeOverlayMapTypeId(kakao.maps.MapTypeId.ROADVIEW);
+
+        // 지도 클릭 이벤트 제거
+        if (mapClickListener) {
+            kakao.maps.event.removeListener(map, 'click', mapClickListener);
+            mapClickListener = null;
+        }
+
+        console.log('거리뷰 모드 비활성화');
+    } else {
+        // 거리뷰 모드 활성화
+        roadviewMode = true;
+        btnRoadview.className = 'selected_btn';
+
+        // ROADVIEW 레이어 오버레이 추가
+        map.addOverlayMapTypeId(kakao.maps.MapTypeId.ROADVIEW);
+
+        // 거리뷰 클라이언트 초기화 (처음 사용 시)
+        if (!roadviewClient) {
+            roadviewClient = new kakao.maps.RoadviewClient();
+        }
+
+        // 지도 클릭 이벤트 추가
+        mapClickListener = kakao.maps.event.addListener(map, 'click', function(mouseEvent) {
+            if (roadviewMode) {
+                var position = mouseEvent.latLng;
+                showRoadviewAtPosition(position);
+            }
+        });
+
+        console.log('거리뷰 모드 활성화 - 지도를 클릭하여 거리뷰를 확인하세요');
+    }
+}
+
+/**
+ * 특정 위치의 거리뷰 표시
+ */
+function showRoadviewAtPosition(position) {
+    // 클릭한 위치 기준 50m 반경 내 가장 가까운 거리뷰 찾기
+    roadviewClient.getNearestPanoId(position, 50, function(panoId) {
+        if (panoId === null) {
+            // 거리뷰가 없는 경우
+            alert('해당 위치에서 거리뷰를 사용할 수 없습니다.');
+            return;
+        }
+
+        // 거리뷰 팝업 패널 열기
+        var roadviewPanel = document.getElementById('roadviewPopupPanel');
+        var roadviewContainer = document.getElementById('roadviewContainer');
+
+        roadviewPanel.classList.add('open');
+
+        // 거리뷰 객체 생성 (처음 사용 시)
+        if (!roadview) {
+            roadview = new kakao.maps.Roadview(roadviewContainer);
+        }
+
+        // 거리뷰 표시
+        roadview.setPanoId(panoId, position);
+
+        console.log('거리뷰 표시:', panoId);
+    });
+}
+
+/**
+ * 거리뷰 팝업 패널 닫기
+ */
+function closeRoadviewPanel() {
+    var roadviewPanel = document.getElementById('roadviewPopupPanel');
+    roadviewPanel.classList.remove('open');
+    console.log('거리뷰 팝업 닫기');
 }

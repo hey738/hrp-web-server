@@ -716,106 +716,40 @@ class HospitalBounds(BaseModel):
 # 병원 검색 엔드포인트
 @app.post("/getHospitals")
 async def get_hospitals(bounds: HospitalBounds):
-    """현재 지도 영역 내의 모든 병원을 조회합니다 (페이지네이션 및 필터 적용)"""
+    """현재 지도 영역 내의 모든 병원을 조회합니다 (PostGIS 공간 쿼리 사용)"""
     try:
-        logger.info(f"병원 검색 요청: sw({bounds.sw_lat}, {bounds.sw_lng}), ne({bounds.ne_lat}, {bounds.ne_lng}), department={bounds.department}, has_specialist={bounds.has_specialist}")
+        logger.info(f"병원 검색 요청 (PostGIS): sw({bounds.sw_lat}, {bounds.sw_lng}), "
+                   f"ne({bounds.ne_lat}, {bounds.ne_lng}), department={bounds.department}")
 
-        # 필터가 있는 경우: 먼저 hospital_departments에서 조건에 맞는 ykiho 목록 추출
-        filtered_ykihos = None
-        if bounds.department or bounds.has_specialist:
-            filtered_ykihos = set()
-            page_size = 1000
-            offset = 0
-            page_num = 0
+        # PostGIS 공간 쿼리를 사용하는 RPC 함수 호출
+        result = supabase.rpc(
+            'search_hospitals_spatial',
+            {
+                'p_sw_lng': bounds.sw_lng,
+                'p_sw_lat': bounds.sw_lat,
+                'p_ne_lng': bounds.ne_lng,
+                'p_ne_lat': bounds.ne_lat,
+                'p_department': bounds.department or '',
+                'p_has_specialist': bounds.has_specialist
+            }
+        ).execute()
 
-            while True:
-                page_num += 1
-                # hospital_departments 테이블에서 필터링
-                query = supabase.table('hospital_departments').select('ykiho')
+        hospitals = result.data if result.data else []
 
-                # 진료과목 필터
-                if bounds.department:
-                    query = query.eq('dgsbjtcdnm', bounds.department)
+        # 전문의가 있는 병원 수 계산
+        specialist_count = sum(1 for h in hospitals if h.get('has_specialist'))
 
-                # 전문의 필터
-                if bounds.has_specialist:
-                    query = query.gte('dgsbjtprsdrcnt', 1)
-
-                result = query.range(offset, offset + page_size - 1).execute()
-
-                if not result.data:
-                    break
-
-                for row in result.data:
-                    if row.get('ykiho'):
-                        filtered_ykihos.add(row['ykiho'])
-
-                logger.info(f"필터 페이지 {page_num}: {len(result.data)}개 행 조회, 누적 유니크 병원: {len(filtered_ykihos)}개")
-
-                if len(result.data) < page_size:
-                    break
-
-                offset += page_size
-
-            logger.info(f"필터 적용 결과: {len(filtered_ykihos)}개 병원 ID 추출")
-
-            # 필터 결과가 없으면 빈 결과 반환
-            if not filtered_ykihos:
-                return {
-                    "success": True,
-                    "count": 0,
-                    "hospitals": []
-                }
-
-        # 모든 병원을 저장할 리스트
-        all_hospitals = []
-
-        # 페이지네이션을 사용하여 모든 데이터 조회
-        page_size = 1000
-        offset = 0
-        page_num = 0
-
-        while True:
-            page_num += 1
-            # Supabase에서 hospital_basic 테이블 조회
-            # xpos는 경도(longitude), ypos는 위도(latitude)
-            query = supabase.table('hospital_basic') \
-                .select('ykiho, yadmnm, xpos, ypos, addr, telno, clcdnm') \
-                .gte('ypos', bounds.sw_lat) \
-                .lte('ypos', bounds.ne_lat) \
-                .gte('xpos', bounds.sw_lng) \
-                .lte('xpos', bounds.ne_lng)
-
-            result = query.range(offset, offset + page_size - 1).execute()
-
-            if not result.data:
-                break
-
-            # 필터가 있는 경우 ykiho로 필터링
-            if filtered_ykihos is not None:
-                filtered_data = [h for h in result.data if h.get('ykiho') in filtered_ykihos]
-                all_hospitals.extend(filtered_data)
-            else:
-                all_hospitals.extend(result.data)
-
-            logger.info(f"페이지 {page_num}: {len(result.data)}개 병원 조회, 누적: {len(all_hospitals)}개")
-
-            # 마지막 페이지면 종료
-            if len(result.data) < page_size:
-                break
-
-            offset += page_size
-
-        logger.info(f"병원 검색 결과: 총 {len(all_hospitals)}개 병원 발견")
+        logger.info(f"병원 검색 결과 (PostGIS): 총 {len(hospitals)}개 병원 "
+                   f"(전문의 있는 병원: {specialist_count}개)")
 
         return {
             "success": True,
-            "count": len(all_hospitals),
-            "hospitals": all_hospitals
+            "count": len(hospitals),
+            "hospitals": hospitals
         }
 
     except Exception as e:
-        logger.error(f"병원 검색 오류: {str(e)}")
+        logger.error(f"병원 검색 오류 (PostGIS): {str(e)}")
         raise HTTPException(status_code=500, detail=f"병원 검색 중 오류 발생: {str(e)}")
 
 # 진료과목 목록 조회 엔드포인트

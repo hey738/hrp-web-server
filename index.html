@@ -3,15 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
-    <link rel="stylesheet" href="/static/app.css">
+    <title>주식회사 호랑팜</title>
+    <link rel="icon" type="image/jpeg" href="/static/logo.jpg">
+    <link rel="stylesheet" href="/static/script.css">
     <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=8d14685beb674db45953e6e3f0d85a92&libraries=drawing"></script>
 </head>
 <body>
     <!-- 좌측 네비게이션 바 -->
     <div class="navbar">
         <div class="navbar-item navbar-logo" id="navLogo">
-            <span>로고</span>
+            <img src="/static/logo.jpg" alt="로고" class="navbar-logo-img">
         </div>
         <div class="navbar-item" id="navPopulation" onclick="showPopulationSidebar()">
             <span>인구수</span>
@@ -97,12 +98,9 @@
                     <!-- 전문의 여부 필터 -->
                     <div class="filter-group">
                         <label class="filter-label">전문의 여부</label>
-                        <div class="filter-checkbox-group">
-                            <label class="filter-checkbox">
-                                <input type="checkbox" id="specialistFilter" value="specialist">
-                                <span>전문의 있는 병원만</span>
-                            </label>
-                        </div>
+                        <button class="pill-button" id="specialistFilter" role="switch" aria-checked="false">
+                            <span class="pill-text">전문의</span>
+                        </button>
                     </div>
                 </div>
 
@@ -131,6 +129,17 @@
         </div>
     </div>
 
+    <!-- 거리뷰 팝업 패널 -->
+    <div class="roadview-popup-panel" id="roadviewPopupPanel">
+        <div class="roadview-header">
+            <h3>거리뷰</h3>
+            <button class="roadview-close-btn" onclick="closeRoadviewPanel()">&times;</button>
+        </div>
+        <div class="roadview-container" id="roadviewContainer">
+            <!-- 거리뷰가 여기에 표시됩니다 -->
+        </div>
+    </div>
+
     <div class="map_wrap" id="mapWrap">
         <div id="map" style="width:100%;height:100%;position:relative;overflow:hidden;"></div>
         <!-- 지도타입 컨트롤 div 입니다 -->
@@ -138,14 +147,19 @@
             <span id="btnRoadmap" class="selected_btn" onclick="setMapType('roadmap')">지도</span>
             <span id="btnSkyview" class="btn" onclick="setMapType('skyview')">스카이뷰</span>
         </div>
+        <!-- 지적편집도/거리뷰 컨트롤 div 입니다 -->
+        <div class="custom_mapcontrol radius_border">
+            <span id="btnUseDistrict" class="btn" onclick="toggleUseDistrict()">지적편집도</span>
+            <span id="btnRoadview" class="btn" onclick="toggleRoadview()">거리뷰</span>
+        </div>
         <!-- 지도 확대, 축소 컨트롤 div 입니다 -->
-        <div class="custom_zoomcontrol radius_border"> 
-            <span onclick="zoomIn()"><img src="https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/ico_plus.png" alt="확대"></span>  
+        <div class="custom_zoomcontrol radius_border">
+            <span onclick="zoomIn()"><img src="https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/ico_plus.png" alt="확대"></span>
             <span onclick="zoomOut()"><img src="https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/ico_minus.png" alt="축소"></span>
         </div>
     </div>
 
-    <script src="/static/app.js"></script>
+    <script src="/static/script.js"></script>
 
 </body>
 </html>
