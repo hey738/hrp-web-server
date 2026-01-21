@@ -13,7 +13,14 @@
       "Bash(pip install:*)",
       "Bash(ping:*)",
       "Bash(curl:*)",
-      "Bash(pkill:*)"
+      "Bash(pkill:*)",
+      "mcp__supabase__search_docs",
+      "mcp__supabase__list_tables",
+      "mcp__supabase__get_project_url",
+      "mcp__supabase__get_publishable_keys",
+      "mcp__supabase__list_migrations",
+      "mcp__supabase__get_advisors",
+      "Bash(ls:*)"
     ],
     "deny": [],
     "ask": []

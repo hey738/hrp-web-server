@@ -19,6 +19,7 @@ var mapClickListener = null;  // 지도 클릭 이벤트 리스너
 
 // 병원 마커 관리 전역 변수
 var hospitalMarkers = [];  // 병원 마커 배열
+var hospitalClusterer = null;  // 병원 마커 클러스터러
 var hospitalInfowindow = null;  // 병원 정보창
 var currentSelectedHospital = null;  // 현재 선택된 병원
 var wasDetailPanelOpenBeforeClose = false;  // 사이드바 닫기 전 상세창이 열려있었는지 기록
@@ -117,6 +118,11 @@ function showHospitalSidebar() {
 
 // 병원 마커 제거 함수
 function clearHospitalMarkers() {
+    // 클러스터러가 있으면 클러스터러에서 마커 제거
+    if (hospitalClusterer) {
+        hospitalClusterer.clear();
+    }
+
     for (var i = 0; i < hospitalMarkers.length; i++) {
         hospitalMarkers[i].setMap(null);
     }
@@ -134,6 +140,16 @@ function clearHospitalMarkers() {
 // 병원 검색 함수
 async function searchHospitals() {
     var resultsContent = document.getElementById('hospitalResultsContent');
+
+    // 줌 레벨 체크 (7 초과 시 검색 제한)
+    var zoomLevel = map.getLevel();
+    if (zoomLevel > 7) {
+        resultsContent.innerHTML = '<p style="color: #e74c3c;">지도를 더 확대해주세요.<br>(현재 줌 레벨: ' + zoomLevel + ', 필요: 7 이하)</p>';
+        clearHospitalMarkers();
+        allHospitalsData = [];
+        return;
+    }
+
     resultsContent.innerHTML = '<p style="color: #666;">병원 검색 중...</p>';
 
     try {
@@ -233,10 +249,10 @@ function filterAndDisplayHospitals() {
             if (hospital.xpos && hospital.ypos) {
                 var position = new kakao.maps.LatLng(hospital.ypos, hospital.xpos);
 
-                // 마커 생성
+                // 마커 생성 (클러스터러가 관리하므로 map: null)
                 var marker = new kakao.maps.Marker({
                     position: position,
-                    map: map
+                    map: null
                 });
 
                 // 마커에 병원 정보 저장
@@ -260,6 +276,40 @@ function filterAndDisplayHospitals() {
                 hospitalMarkers.push(marker);
             }
         });
+
+        // 클러스터러 초기화 및 마커 추가
+        if (!hospitalClusterer) {
+            hospitalClusterer = new kakao.maps.MarkerClusterer({
+                map: map,
+                averageCenter: true,
+                minLevel: 1,
+                gridSize: 120,
+                disableClickZoom: true
+            });
+
+            // 클러스터 클릭 이벤트 추가
+            kakao.maps.event.addListener(hospitalClusterer, 'clusterclick', function(cluster) {
+                // 클러스터에 포함된 마커들 가져오기
+                var markers = cluster.getMarkers();
+
+                // 마커에서 병원 데이터 추출
+                var hospitals = markers.map(function(marker) {
+                    return marker.hospitalData;
+                }).filter(function(data) {
+                    return data !== undefined;
+                });
+
+                // 사이드바가 닫혀있으면 열기
+                var sidebar = document.getElementById('sidebar');
+                if (!sidebar.classList.contains('open')) {
+                    showHospitalSidebar();
+                }
+
+                // 클러스터 내 병원 리스트 표시
+                displayClusterHospitalList(hospitals);
+            });
+        }
+        hospitalClusterer.addMarkers(hospitalMarkers);
 
         // 사이드바에 병원 리스트 표시
         displayHospitalList(filteredHospitals);
@@ -299,6 +349,62 @@ function displayHospitalList(hospitals) {
     });
 
     resultsContent.innerHTML = html;
+}
+
+// 클러스터 내 병원 리스트 표시
+function displayClusterHospitalList(hospitals) {
+    var resultsContent = document.getElementById('hospitalResultsContent');
+
+    if (hospitals.length === 0) {
+        resultsContent.innerHTML = '<p style="color: #666;">클러스터에 병원이 없습니다.</p>';
+        return;
+    }
+
+    var html = '<div style="margin-bottom: 10px; padding: 10px; background: #e3f2fd; border-radius: 4px;">' +
+        '<strong>클러스터 내 병원: ' + hospitals.length + '개</strong>' +
+        '<button onclick="resetHospitalList()" style="float: right; padding: 2px 8px; font-size: 11px; cursor: pointer;">전체 보기</button>' +
+        '</div>';
+
+    hospitals.forEach(function(hospital) {
+        // hospitalMarkers 배열에서 해당 병원의 인덱스 찾기
+        var markerIndex = hospitalMarkers.findIndex(function(marker) {
+            return marker.hospitalData && marker.hospitalData.ykiho === hospital.ykiho;
+        });
+
+        html += '<div class="hospital-item" style="padding: 12px; margin-bottom: 8px; ' +
+            'border: 1px solid #ddd; border-radius: 4px; cursor: pointer; ' +
+            'transition: background 0.2s;" ' +
+            'onmouseover="this.style.background=\'#f8f9fa\'" ' +
+            'onmouseout="this.style.background=\'white\'" ' +
+            'onclick="showHospitalDetail(' + markerIndex + ')">' +
+            '<h4 style="margin: 0 0 5px 0; font-size: 14px;">' + hospital.yadmnm + '</h4>' +
+            '<p style="margin: 3px 0; font-size: 12px; color: #666;">' +
+            (hospital.clcdnm || '종별 정보 없음') + '</p>' +
+            '<p style="margin: 3px 0; font-size: 11px; color: #888;">' +
+            (hospital.addr || '주소 정보 없음') + '</p>' +
+            '</div>';
+    });
+
+    resultsContent.innerHTML = html;
+}
+
+// 전체 병원 리스트로 복원
+function resetHospitalList() {
+    // 전문의 필터 토글 버튼 상태 확인
+    var specialistToggle = document.getElementById('specialistFilter');
+    var onlySpecialist = specialistToggle ?
+        specialistToggle.getAttribute('aria-checked') === 'true' : false;
+
+    // 필터링
+    var filteredHospitals = allHospitalsData;
+    if (onlySpecialist) {
+        filteredHospitals = allHospitalsData.filter(function(hospital) {
+            return hospital.has_specialist === true;
+        });
+    }
+
+    // 필터링된 병원 데이터로 리스트 표시
+    displayHospitalList(filteredHospitals);
 }
 
 // 병원 마커에 포커스 (리스트 클릭 시)
